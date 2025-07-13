@@ -1,5 +1,6 @@
 package org.apache.iggy.examples.basic.consumer;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
@@ -13,9 +14,12 @@ import org.apache.iggy.message.PollingStrategy;
 import org.apache.iggy.identifier.StreamId;
 import org.apache.iggy.identifier.TopicId;
 import org.apache.iggy.consumergroup.Consumer;
+import org.apache.iggy.topic.CompressionAlgorithm;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+
 
 public class BasicConsumer {
     private static final Logger logger = LoggerFactory.getLogger(BasicConsumer.class);
@@ -80,6 +84,9 @@ public class BasicConsumer {
         TopicId topicId = TopicId.of(parsedArgs.topicId);
         Consumer consumer = Consumer.of(parsedArgs.consumerId);
 
+        // initialize system resources
+        initByConsumer(client, streamId, topicId, consumer);
+
         logger.info("Consuming from stream ID: {}, topic ID: {}, as consumer ID: {}",
                 parsedArgs.streamId, parsedArgs.topicId, parsedArgs.consumerId);
 
@@ -113,6 +120,44 @@ public class BasicConsumer {
 
     private static IggyBaseClient createBaseClient(String host, int port) {
         return new IggyTcpClient(host, port);
+    }
+
+    private static void initByConsumer(IggyClient client, StreamId streamId, TopicId topicId, Consumer consumer) throws Exception {
+        try {
+            // Check if stream exists, if not create it
+            try {
+                client.getBaseClient().streams().getStream(streamId);
+                logger.info("Stream with ID {} exists", streamId.getId());
+            } catch (Exception e) {
+                logger.info("Stream with ID {} doesn't exist, creating it...", streamId.getId());
+                client.getBaseClient().streams().createStream(Optional.of(streamId.getId()), "example-stream");
+            }
+
+            // Check if topic exists, if not create it
+            try {
+                client.getBaseClient().topics().getTopic(streamId, topicId);
+                logger.info("Topic with ID {} exists in stream {}", topicId.getId(), streamId.getId());
+            } catch (Exception e) {
+                logger.info("Topic with ID {} doesn't exist in stream {}, creating it...", topicId.getId(), streamId.getId());
+
+                client.getBaseClient().topics().createTopic(
+                        streamId,
+                        Optional.of(topicId.getId()),
+                        1L, // partitionsCount
+                        CompressionAlgorithm.None, // Use appropriate compression algorithm
+                        BigInteger.ZERO, // messageExpiry - no expiry
+                        BigInteger.ZERO, // maxTopicSize - unlimited
+                        Optional.empty(), // replicationFactor
+                        "example-topic" // name
+                );
+            }
+
+            // For consumer ID, we're using client-assigned ID so we don't need to create it
+            logger.info("Using consumer with ID {}", consumer.id());
+        } catch (Exception e) {
+            logger.error("Failed to initialize system resources", e);
+            throw e;
+        }
     }
 
 }
