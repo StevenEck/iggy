@@ -90,26 +90,8 @@ public class BasicConsumer {
         logger.info("Consuming from stream ID: {}, topic ID: {}, as consumer ID: {}",
                 parsedArgs.streamId, parsedArgs.topicId, parsedArgs.consumerId);
 
-        // Poll for messages continuously
-        while (true) {
-            PolledMessages messages = client.getBaseClient().messages().pollMessages(
-                    streamId,
-                    topicId,
-                    Optional.empty(), // No specific partition
-                    consumer,
-                    PollingStrategy.next(), // Get next messages
-                    100L,  // Fetch up to 100 messages
-                    true   // Auto-commit offsets
-            );
-
-            // Process each message
-            for (Message message : messages.messages()) {
-                handleMessage(message);
-            }
-
-            // Don't hammer the server
-            Thread.sleep(1000);
-        }
+        // Start consuming messages with adaptive polling
+        consumeMessagesWithAdaptivePolling(client, streamId, topicId, consumer);
     }
 
     private static void handleMessage(Message message) {
@@ -157,6 +139,52 @@ public class BasicConsumer {
         } catch (Exception e) {
             logger.error("Failed to initialize system resources", e);
             throw e;
+        }
+    }
+
+    private static void consumeMessagesWithAdaptivePolling(
+            IggyClient client,
+            StreamId streamId,
+            TopicId topicId,
+            Consumer consumer) throws InterruptedException {
+
+        int consecutiveEmptyPolls = 0;
+        while (true) {
+            try {
+                PolledMessages messages = client.getBaseClient().messages().pollMessages(
+                        streamId,
+                        topicId,
+                        Optional.empty(),
+                        consumer,
+                        PollingStrategy.next(),
+                        100L,
+                        true
+                );
+
+                int messageCount = messages.messages().size();
+
+                // Process messages
+                for (Message message : messages.messages()) {
+                    handleMessage(message);
+                }
+
+                // Implement adaptive polling frequency
+                if (messageCount == 0) {
+                    // No messages found, gradually back off
+                    consecutiveEmptyPolls++;
+                    // Exponential backoff with a cap
+                    int sleepTime = Math.min(100 * consecutiveEmptyPolls, 1000);
+                    Thread.sleep(sleepTime);
+                } else {
+                    // Messages found, reset backoff and continue quickly
+                    consecutiveEmptyPolls = 0;
+                    // Small pause to prevent overwhelming the network
+                    Thread.sleep(10);
+                }
+            } catch (Exception e) {
+                logger.error("Error polling messages: {}", e.getMessage());
+                Thread.sleep(1000); // Back off on errors
+            }
         }
     }
 
