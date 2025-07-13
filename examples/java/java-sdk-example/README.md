@@ -17,3 +17,8 @@ Java SDK is located in foreign/java/
 Reference the Rust examples in examples/rust/ for feature parity
 Examples should work with the latest version of the Java SDK
 Consider using CompletableFuture for async operations%
+
+
+NOTES: Requirements say 11, but some functionality like Java Records in the Java SDK require at least 17:
+"java: cannot access java.lang.Record
+class file for java.lang.Record not found"
