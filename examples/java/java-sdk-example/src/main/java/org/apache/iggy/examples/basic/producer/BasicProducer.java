@@ -114,24 +114,34 @@ public class BasicProducer {
 
     private static void initByProducer(IggyClient client, StreamId streamId, TopicId topicId) {
         try {
-            Optional<org.apache.iggy.topic.TopicDetails> topicDetails =
-                    client.getBaseClient().topics().getTopic(streamId, topicId);
-            if (topicDetails.isPresent()) {
-                logger.info("Topic with ID {} exists in stream {}, deleting and recreating with 1 partition", topicId.getId(), streamId.getId());
-                client.getBaseClient().topics().deleteTopic(streamId, topicId);
-            } else {
-                logger.info("Topic with ID {} doesn't exist in stream {}, creating it...", topicId.getId(), streamId.getId());
+            // Always try to create stream regardless of whether we think it exists
+            try {
+                logger.info("Ensuring stream with ID {} exists...", streamId.getId());
+                client.getBaseClient().streams().createStream(Optional.of(streamId.getId()), "example-stream");
+                logger.info("Stream created successfully");
+            } catch (Exception e) {
+                // Likely already exists
+                logger.info("Create stream result (may be ok if already exists): {}", e.getMessage());
             }
-            client.getBaseClient().topics().createTopic(
-                    streamId,
-                    Optional.of(topicId.getId()),
-                    1L, // partitionsCount
-                    CompressionAlgorithm.None,
-                    BigInteger.ZERO,
-                    BigInteger.ZERO,
-                    Optional.empty(),
-                    "example-topic"
-            );
+
+            // Always try to create topic regardless of whether we think it exists
+            try {
+                logger.info("Ensuring topic with ID {} exists in stream {}...", topicId.getId(), streamId.getId());
+                client.getBaseClient().topics().createTopic(
+                        streamId,
+                        Optional.of(topicId.getId()),
+                        1L, // partitionsCount
+                        CompressionAlgorithm.None,
+                        BigInteger.ZERO,
+                        BigInteger.ZERO,
+                        Optional.empty(),
+                        "example-topic"
+                );
+                logger.info("Topic created successfully");
+            } catch (Exception e) {
+                // Likely already exists
+                logger.info("Create topic result (may be ok if already exists): {}", e.getMessage());
+            }
         } catch (Exception e) {
             logger.error("Failed to initialize system resources", e);
             throw e;

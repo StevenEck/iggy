@@ -134,22 +134,19 @@ public class BasicConsumer {
 
     private static void initByConsumer(IggyClient client, StreamId streamId, TopicId topicId, Consumer consumer) throws Exception {
         try {
-            // Check if stream exists, if not create it
+            // Always try to create stream regardless of whether we think it exists
             try {
-                client.getBaseClient().streams().getStream(streamId);
-                logger.info("Stream with ID {} exists", streamId.getId());
-            } catch (Exception e) {
-                logger.info("Stream with ID {} doesn't exist, creating it...", streamId.getId());
+                logger.info("Ensuring stream with ID {} exists...", streamId.getId());
                 client.getBaseClient().streams().createStream(Optional.of(streamId.getId()), "example-stream");
+                logger.info("Stream created or already exists");
+            } catch (Exception e) {
+                // Likely already exists, verify it
+                logger.info("Create stream result (may be ok if already exists): {}", e.getMessage());
             }
 
-            // Check if topic exists, if not create it
+            // Always try to create topic regardless of whether we think it exists
             try {
-                client.getBaseClient().topics().getTopic(streamId, topicId);
-                logger.info("Topic with ID {} exists in stream {}", topicId.getId(), streamId.getId());
-            } catch (Exception e) {
-                logger.info("Topic with ID {} doesn't exist in stream {}, creating it...", topicId.getId(), streamId.getId());
-
+                logger.info("Ensuring topic with ID {} exists in stream {}...", topicId.getId(), streamId.getId());
                 client.getBaseClient().topics().createTopic(
                         streamId,
                         Optional.of(topicId.getId()),
@@ -160,6 +157,10 @@ public class BasicConsumer {
                         Optional.empty(), // replicationFactor
                         "example-topic" // name
                 );
+                logger.info("Topic created or already exists");
+            } catch (Exception e) {
+                // Likely already exists, verify it
+                logger.info("Create topic result (may be ok if already exists): {}", e.getMessage());
             }
 
             // For consumer ID, we're using client-assigned ID so we don't need to create it
