@@ -18,30 +18,27 @@
  */
 
 
-import type { CommandResponse } from '../../client/client.type.js';
-import { deserializeClient, type Client } from './client.utils.js';
-import { wrapCommand } from '../command.utils.js';
-import { COMMAND_CODE } from '../command.code.js';
+import { Id } from '../identifier.utils.js';
+import { ClientProvider } from '../../client/index.js';
+import { createTopic } from './create-topic.command.js';
+import { getTopic } from './get-topic.command.js';
 
-export type GetClient = {
-  clientId: number
-};
-
-// GET CLIENT by id
-export const GET_CLIENT = {
-  code: COMMAND_CODE.GetClient,
-
-  serialize: ({ clientId }: GetClient): Buffer => {
-    const b = Buffer.alloc(4);
-    b.writeUInt32LE(clientId);
-    return b;
-  },
-
-  deserialize: (r: CommandResponse) => {
-    if(r.status === 0 && r.length === 0)
-      return null;
-    return deserializeClient(r.data).data
-  }
-};
-
-export const getClient = wrapCommand<GetClient, Client | null>(GET_CLIENT);
+export const ensureTopic = (c: ClientProvider) =>
+  async function ensureTopic(
+    streamId: Id,
+    topicId: number,
+    topicName = `ensure-topic-${streamId}-${topicId}`,
+    partitionCount = 1,
+    compressionAlgorithm = 1
+  ) {
+    const topic = await getTopic(c)({ streamId, topicId });
+    return topic === null ?
+      createTopic(c)({
+        streamId,
+        topicId,
+        name: topicName,
+        partitionCount,
+        compressionAlgorithm
+      }) :
+      true;
+  };
